@@ -1063,3 +1063,4 @@ class SpringScale(VGroup):
 
         # 8. 组合（注意顺序：先 add body，再 add 其他部件）
         self.add(body, center_line, scale_marks, pointer, arrowhead, top_ring, hook)
+
