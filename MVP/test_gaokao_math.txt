@@ -1,0 +1,29 @@
+请制作一个解析几何解题动画。采用标准的 3x3 九宫格布局：网格 1,2 为题目区，网格 4,5,7,8 为推导区，网格 3,6,9 为图形区。
+
+【题目内容】：
+已知椭圆 E: x^2/4 + y^2/3 = 1 的左、右焦点分别为 F1(-1,0), F2(1,0)。
+点 A(1, 1.5) 在椭圆 E 上且在第一象限内，AF2 垂直于 x 轴。
+(1) 求三角形 AF1F2 的周长；
+(2) 在 x 轴上取一点 P，直线 AP 与椭圆右准线 (x=4) 交于点 Q，求向量 OP · QP 的最小值。
+
+【排版强制约束 (核心防重叠机制 - CodeGen 必须遵守)】：
+1. 坐标系约束：Axes 必须设定固定尺寸（如 `x_length=6, y_length=6`），通过 `.to_edge(RIGHT, buff=0.5)` 固定在右侧。所有绘图点必须使用 `axes.c2p`。
+2. 题目区约束：使用 `Tex` 或 `Text` 将题目缩放至 `.scale(0.7)`，通过 `.to_corner(UL, buff=0.5)` 置于左上角。
+3. ✨推导区排版（绝对禁止字叠字）：推导过程必须依次创建各个步骤的对象，**必须**将它们放进一个 `VGroup` 中，并使用 `VGroup(step1, step2, step3).arrange(DOWN, aligned_edge=LEFT, buff=0.4)` 进行垂直等距排列。最后将整个 VGroup 使用 `.next_to(题目对象, DOWN, buff=0.5).align_to(题目对象, LEFT)` 摆放。
+
+【强制解题剧本与分镜 (用于展示)】：
+- 场景1：展示第一问。右侧画出椭圆、F1, F2, A 点。左侧推导区通过 VGroup(step1, step2, step3).arrange() 显示：
+  step1: a=2, b=\sqrt{3}, c=1
+  step2: 椭圆定义 |AF_1| + |AF_2| = 2a = 4
+  step3: 焦距 |F_1F_2| = 2c = 2
+  step4: 周长 = 4 + 2 = 6
+
+- 场景2：清空之前的推导区。右侧图形保留椭圆和 A 点，新增右准线 x=4 (垂直虚线)。
+  核心动态：引入 ValueTracker(0)，代表 P 的 x 坐标 m。使用 always_redraw 创建动点 P(m, 0)、直线 AP、以及交点 Q(4, y_Q)。
+  推导区的步骤（创建一个新的 VGroup 自动排列）：
+  step1: 设 P(m, 0), 则 \overrightarrow{OP} = (m, 0)
+  step2: \overrightarrow{QP} = P - Q = (m-4, -y_Q)
+  step3: \overrightarrow{OP} \cdot \overrightarrow{QP} = m(m-4) + 0 = m^2 - 4m
+  step4: 配方：m^2 - 4m = (m-2)^2 - 4
+  step5: 当 m = 2 时，取得最小值 -4
+  动画：播放 P 点的 ValueTracker 从 -1 运动到 4，展示点 Q 在准线上的联动，同时左侧推导文字保留显示。

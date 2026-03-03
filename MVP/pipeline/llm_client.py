@@ -7,8 +7,10 @@ from typing import Any, Literal
 
 from .env import load_dotenv
 from .json_utils import load_json_from_llm
-from .llm.types import ChatMessage
+from .llm.types import ChatMessage, LLMBackend
 from .llm.zhipu import chat_completion, load_zhipu_stage_config
+from .llm.anthropic import chat_completion as anthropic_completion
+from .llm.anthropic import load_anthropic_stage_config
 from .llm_continuation import continue_code_output, continue_json_output
 
 
@@ -17,10 +19,16 @@ Mode = Literal["generate", "continue", "repair"]
 
 @dataclass(frozen=True)
 class LLMStage:
-    """把“业务角色”映射到 `configs/llm.yaml` 里的 stage 配置名。"""
+    """
+    把"业务角色"映射到 LLM 后端配置。
+
+    支持：
+    - zhipu: 使用智谱 AI
+    - anthropic: 使用 Anthropic/Claude
+    """
 
     name: str
-    zhipu_stage: str
+    backend: LLMBackend
     prompt_bundle: str | None = None
 
 
@@ -39,27 +47,46 @@ class LLMClient:
         self.prompts_dir = prompts_dir
         self.stage_map = stage_map
 
+    def _get_stage_backend(self, stage_key: str) -> LLMBackend:
+        """获取指定 stage 的 LLM 后端。"""
+        return self.stage_map[stage_key].backend
+
     def _cfg(self, stage_key: str, mode: Mode):
-        stage = self.stage_map[stage_key].zhipu_stage
-        return load_zhipu_stage_config(stage=stage, mode=mode)
+        """根据 stage 的 backend 加载对应配置。"""
+        backend = self._get_stage_backend(stage_key)
+
+        if backend.name == "zhipu":
+            stage = backend.stage_config
+            return load_zhipu_stage_config(stage=stage, mode=mode)
+        elif backend.name == "anthropic":
+            stage = backend.stage_config
+            return load_anthropic_stage_config(stage=stage, mode=mode)
+        else:
+            raise ValueError(f"未知的 LLM backend: {backend.name}")
 
     def chat(self, *, stage_key: str, mode: Mode, system_prompt: str, user_prompt: str) -> str:
         load_dotenv()
         cfg = self._cfg(stage_key, mode)
-        return chat_completion(
-            [
-                ChatMessage(role="system", content=system_prompt),
-                ChatMessage(role="user", content=user_prompt),
-            ],
-            cfg=cfg,
-        )
+        backend = self._get_stage_backend(stage_key)
+
+        messages = [
+            ChatMessage(role="system", content=system_prompt),
+            ChatMessage(role="user", content=user_prompt),
+        ]
+
+        if backend.name == "zhipu":
+            return chat_completion(messages, cfg=cfg)
+        elif backend.name == "anthropic":
+            return anthropic_completion(messages, cfg=cfg)
+        else:
+            raise ValueError(f"未知的 LLM backend: {backend.name}")
 
     def load_system_prompt(self, filename: str) -> str:
         return _read_text(self.prompts_dir / filename)
 
     def load_prompt_bundle(self, bundle_dir: str) -> str:
         """
-        以“文件夹”为单位加载 prompt。
+        以"文件夹"为单位加载 prompt。
 
         目录结构约定：
         prompts/<bundle_dir>/

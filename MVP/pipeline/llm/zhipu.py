@@ -49,12 +49,13 @@ def _to_bool(value: str | bool | None, default: bool) -> bool:
 def load_zhipu_config() -> ZhipuConfig:
     """
     优先级：
-    1) 环境变量（包含 .env）
+    1) 环境变量（包含 .env，强制覆盖）
     2) MVP/configs/llm.yaml
     3) 内置默认值
     """
 
-    load_dotenv()
+    # 注意：使用 override=True 确保 .env 中的配置优先
+    load_dotenv(override=True)
     zhipu = _load_zhipu_raw()
 
     model = os.environ.get("ZHIPU_MODEL") or str(zhipu.get("model", "glm-4.7"))

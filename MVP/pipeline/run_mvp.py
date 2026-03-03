@@ -21,6 +21,7 @@ if __package__ in {None, ""}:
 
     from pipeline.config import ERROR_DIR, PROMPTS_DIR, RUNS_DIR  # noqa: E402
     from pipeline.llm_client import LLMClient, LLMStage  # noqa: E402
+    from pipeline.llm.types import LLMBackend  # noqa: E402
     from pipeline.run_layout import RunLayout  # noqa: E402
     from pipeline.static_checks import run_static_checks  # noqa: E402
     from pipeline.rendering import (  # noqa: E402
@@ -30,6 +31,7 @@ if __package__ in {None, ""}:
 else:
     from .config import ERROR_DIR, PROMPTS_DIR, RUNS_DIR  # noqa: E402
     from .llm_client import LLMClient, LLMStage  # noqa: E402
+    from .llm.types import LLMBackend  # noqa: E402
     from .run_layout import RunLayout  # noqa: E402
     from .static_checks import run_static_checks  # noqa: E402
     from .rendering import (  # noqa: E402
@@ -120,21 +122,45 @@ def _write_global_llm4_error_log(
 
 
 def build_client() -> LLMClient:
-    # 复用 MVP/configs/llm.yaml 里的 stage 采样 profile
+    """
+    构建 LLM 客户端，配置不同 stage 使用不同的 LLM 后端。
+
+    分工策略：
+    - LLM1 (Analyst): 智谱 AI (zhipu)
+    - LLM2 (Scene Planner): 智谱 AI (zhipu)
+    - LLM3 (Scene Designer): 智谱 AI (zhipu)
+    - LLM4 (CodeGen): Anthropic/Claude (anthropic) - 代码生成
+    - LLM5 (Fixer): Anthropic/Claude (anthropic) - 修复代码
+    """
+
     stage_map = {
-        "analyst": LLMStage(name="analyst", zhipu_stage="analyst", prompt_bundle="llm1_analyst"),
+        # LLM1-3 保持使用智谱 AI
+        "analyst": LLMStage(
+            name="analyst",
+            backend=LLMBackend(name="zhipu", stage_config="analyst"),
+            prompt_bundle="llm1_analyst",
+        ),
         "scene_planner": LLMStage(
             name="scene_planner",
-            zhipu_stage="scene_planner",
+            backend=LLMBackend(name="zhipu", stage_config="scene_planner"),
             prompt_bundle="llm2_scene_planner",
         ),
         "scene_designer": LLMStage(
             name="scene_designer",
-            zhipu_stage="scene_designer",
+            backend=LLMBackend(name="zhipu", stage_config="scene_designer"),
             prompt_bundle="llm3_scene_designer",
         ),
-        "codegen": LLMStage(name="codegen", zhipu_stage="codegen", prompt_bundle="llm4_codegen"),
-        "fixer": LLMStage(name="fixer", zhipu_stage="fixer", prompt_bundle="llm5_fixer"),
+        # LLM4-5 临时切换为智谱 AI（待 Claude 网关恢复后切回）
+        "codegen": LLMStage(
+            name="codegen",
+            backend=LLMBackend(name="zhipu", stage_config="codegen"),
+            prompt_bundle="llm4_codegen",
+        ),
+        "fixer": LLMStage(
+            name="fixer",
+            backend=LLMBackend(name="zhipu", stage_config="fixer"),
+            prompt_bundle="llm5_fixer",
+        ),
     }
     return LLMClient(prompts_dir=PROMPTS_DIR, stage_map=stage_map)
 
