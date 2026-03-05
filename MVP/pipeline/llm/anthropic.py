@@ -211,7 +211,8 @@ def chat_completion(
     """
     调用 Anthropic/Claude API（原生格式）。
 
-    使用 Anthropic 官方 SDK，自动处理：
+    使用直接 httpx 请求，支持自定义网关。
+    自动处理：
     - /v1/messages 端点
     - x-api-key header
     - anthropic-version header
@@ -222,8 +223,9 @@ def chat_completion(
     cfg = cfg or load_anthropic_config()
     api_key = _get_api_key()
 
-    # 创建 Anthropic 客户端
-    client = _create_client(cfg, api_key)
+    # 构建完整 URL：确保包含 /v1/messages
+    base_url_clean = cfg.base_url.rstrip("/")
+    url = f"{base_url_clean}/v1/messages"
 
     # 分离 system 消息和其他消息
     system_content = ""
@@ -234,25 +236,39 @@ def chat_completion(
         else:
             api_messages.append({"role": msg.role, "content": msg.content})
 
+    # 构建 payload
+    payload = {
+        "model": cfg.model,
+        "max_tokens": cfg.max_tokens,
+        "temperature": cfg.temperature,
+        "system": system_content,
+        "messages": api_messages,
+    }
+
+    # 设置请求头
+    headers = {
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
+
     raw: str | None = None
     last_exc: Exception | None = None
     total_attempts = cfg.retries + 1
 
     for attempt in range(total_attempts):
         try:
-            # 使用官方 SDK 的 messages.create 方法
-            response = client.messages.create(
-                model=cfg.model,
-                max_tokens=cfg.max_tokens,
-                temperature=cfg.temperature,
-                system=system_content,
-                messages=api_messages,
-            )
+            # 使用直接 httpx 请求（绕过 SSL 验证以支持自定义网关）
+            with httpx.Client(verify=False, timeout=cfg.timeout_s) as client:
+                response = client.post(url, headers=headers, json=payload)
+                response.raise_for_status()
+                data = response.json()
 
             # 提取文本内容
-            for block in response.content:
-                if block.type == "text":
-                    raw = block.text
+            content = data.get("content", [])
+            for block in content:
+                if block.get("type") == "text":
+                    raw = block.get("text", "")
                     break
 
             if raw:

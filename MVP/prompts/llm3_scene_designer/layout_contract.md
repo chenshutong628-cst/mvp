@@ -99,7 +99,7 @@
 - **位置**：左上角 2x1 区域
 - **坐标**：`x0: 0.05, y0: 0.15, x1: 0.66, y1: 0.48`
 - **占用**：宽度 66%，高度 33%
-- **定位方法**：使用 `.to_corner(UL)` 定位到左上角
+- **定位方法**：使用 `.to_edge(LEFT, buff=0.5)` 定位到左边缘（V5：空间拉宽）
 - **内容**：题目文本，分行显示
 - **宽度限制**：每个元素必须限制宽度（使用 `max_width_ratio`）
 
@@ -109,7 +109,7 @@
 - **占用**：宽度 66%，高度 66%
 - **定位方法**：
   - 使用 `.next_to(..., DOWN)` 紧接题目区下方
-  - 使用 `.to_edge(LEFT)` 靠左对齐
+  - 使用 `.to_edge(LEFT, buff=0.5)` 靠左对齐（V5：空间拉宽）
 - **内容**：
   - 推导步骤（公式 + 文字）
   - 结论性文字
@@ -120,9 +120,12 @@
 - **位置**：右侧 1x3 整列区域
 - **坐标**：`x0: 0.67, y0: 0.00, x1: 1.00, y1: 1.00`
 - **占用**：宽度 33%，高度 100%
-- **定位方法**：使用 `.to_edge(RIGHT)` 靠右对齐
+- **定位方法**：使用 `.to_edge(RIGHT, buff=0.5)` 靠右对齐（V5：空间拉宽）
 - **坐标系要求**：
   - `Axes` 对象必须被缩放并限制在右半边
+  - **V5 消除畸变铁律：必须锁定 x 轴和 y 轴单位长度为 1:1**
+  - 通过精确控制 x_length 和 y_length 实现比例锁定：x_length / y_length = (x_range[1] - x_range[0]) / (y_range[1] - y_range[0])
+  - 绝对禁止椭圆被压扁或拉长，确保几何图形比例正确
   - 通常使用 `x_range=[-a-1, a], y_range=[-b, b]` 的范围
   - 坐标系中心点应在 `(x0 + x1) / 2` 位置附近
 - **内容**：
@@ -200,7 +203,7 @@
 1. **题目区实现**：
    ```python
    question_text = Text(“题目内容”, font_size=20, color=WHITE)
-   question_text.to_corner(UL).shift(RIGHT * 0.05 + DOWN * 0.15)
+   question_text.to_edge(LEFT, buff=0.5)  # V5：空间拉宽
    # 限制宽度
    if question_text.width > config.frame_width * 0.28:
        question_text.scale_to_width(config.frame_width * 0.28)
@@ -212,7 +215,7 @@
        MathTex(r”\frac{AB}{AC} = ...”),
        Text(“根据相似三角形”)
    ).arrange(DOWN, buff=0.2)
-   explanation.next_to(question_text, DOWN).to_edge(LEFT)
+   explanation.next_to(question_text, DOWN).to_edge(LEFT, buff=0.5)  # V5：空间拉宽
    # 限制宽度
    if explanation.width > config.frame_width * 0.60:
        explanation.scale_to_width(config.frame_width * 0.60)
@@ -220,12 +223,21 @@
 
 3. **几何区实现**：
    ```python
+   # V5 消除畸变铁律：必须锁定 x 轴和 y 轴单位长度为 1:1
+   x_range = [-5, 5]
+   y_range = [-4, 4]
+   x_range_length = x_range[1] - x_range[0]  # 10
+   y_range_length = y_range[1] - y_range[0]  # 8
+   # 设置 x_length 和 y_length 保持 1:1 单位长度比例
+   x_length = 6.0
+   y_length = 6.0 * (y_range_length / x_range_length)  # 4.8
+
    axes = Axes(
-       x_range=[-5, 5],
-       y_range=[-4, 4],
-       x_length=6,  # 限制宽度
-       y_length=8
-   ).to_edge(RIGHT).shift(LEFT * 0.15)
+       x_range=x_range,
+       y_range=y_range,
+       x_length=x_length,
+       y_length=y_length
+   ).to_edge(RIGHT, buff=0.5)  # V5：空间拉宽
 
    # 动点使用 always_redraw
    point_p = always_redraw(lambda: Dot(...))
